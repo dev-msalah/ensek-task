@@ -6,4 +6,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Ensek.Core\Ensek.Core.csproj" />
+    <ProjectReference Include="..\Ensek.Infrastructure\Ensek.Infrastructure.csproj" />
+  </ItemGroup>
+
 </Project>

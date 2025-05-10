@@ -1,41 +1,67 @@
+using Ensek.Api.Endpoints;
+using Ensek.Api.Extensions;
+using Ensek.Core.Interfaces;
+using Ensek.Infrastructure;
+using Ensek.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
+
 var builder = WebApplication.CreateBuilder(args);
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var clientAppUrl = builder.Configuration.GetValue<string>("ClientApp:Url");
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddControllers();
+builder.Services
+    .AddSwaggerGen(c =>
+    {
+        c.SwaggerDoc("v1", new OpenApiInfo
+        {
+            Title = "ENSEK Meter Reading API",
+            Version = "v1.0",
+            Description = "ENSEK Meter Reading API",
+            Contact = new OpenApiContact { Name = "ENSEK", Email = "contact@ensek.com" }
+        });
+        c.SwaggerDoc("v2", new OpenApiInfo
+        {
+            Title = "ENSEK Meter Reading API",
+            Version = "v2.0",
+            Description = "ENSEK Meter Reading API V2",
+            Contact = new OpenApiContact { Name = "ENSEK", Email = "contact@ensek.com" }
+        });
+    })
+    .AddApiVersionService()
+    .AddDbContext<AppDbContext>(options => options.UseSqlite(connectionString));
 
+builder.Services.AddSingleton<IMeterReadingValidator, MeterReadingValidator>();
+builder.Services.AddScoped<IMeterReadingService, MeterReadingService>();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp",
+        builder => builder
+            .WithOrigins(clientAppUrl) 
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials());
+});
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+EndpointConventionBuilderExtensions.InitializeApiVersionSet(app);
+
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ENSEK Meter Reading API V1");
+        c.SwaggerEndpoint("/swagger/v2/swagger.json", "ENSEK Meter Reading API V2");
+        c.RoutePrefix = "docs"; 
+    });
 }
 
+app.UseDatabaseMigrationAndSeeding();
 app.UseHttpsRedirection();
-
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+app.UseRouting();
+app.MeterReadingModule();
+app.UseCors("AllowReactApp");
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
