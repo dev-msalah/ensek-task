@@ -28,9 +28,7 @@ jobs:
         run: dotnet build --configuration Release --no-restore
 
       - name: Run Unit and Integration Tests
-        run: |
-          cd Ensek.Tests
-          dotnet test --no-build --verbosity normal
+        run: dotnet test --no-build --verbosity normal
 
       - name: Upload Test Results
         if: always()
