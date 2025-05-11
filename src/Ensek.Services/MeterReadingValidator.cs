@@ -1,6 +1,7 @@
 ﻿using Ensek.Core.Configuration;
 using Ensek.Core.Dtos;
 using Ensek.Core.Interfaces;
+using Microsoft.Extensions.Options;
 
 namespace Ensek.Services;
 
@@ -8,9 +9,9 @@ public class MeterReadingValidator : IMeterReadingValidator
 {
     private readonly MeterReadingConfig _config;
 
-    public MeterReadingValidator(MeterReadingConfig config)
+    public MeterReadingValidator(IOptions<MeterReadingConfig> options)
     {
-        _config = config;
+        _config = options.Value;
     }
 
     public bool IsValid(MeterReadingDto dto, out string? errorMessage)

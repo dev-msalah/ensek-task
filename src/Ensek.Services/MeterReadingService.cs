@@ -8,7 +8,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Ensek.Core.Results;
 
-
 namespace Ensek.Services;
 
 public class MeterReadingService(AppDbContext context, IMeterReadingValidator validator, ILogger<MeterReadingService> logger) : IMeterReadingService
@@ -24,9 +23,9 @@ public class MeterReadingService(AppDbContext context, IMeterReadingValidator va
 
         var newReadings = new List<MeterReading>();
         var seenKeys = new HashSet<string>();
+        var accountReadingsCache = new Dictionary<int, List<MeterReading>>();
         var latestReadingsInMemory = new Dictionary<int, MeterReading>();
-        var _accountReadingsCache = new Dictionary<int, List<MeterReading>>();
-
+        
         using var reader = new StreamReader(csvStream);
         using var csv = new CsvReader(reader, CultureInfo.GetCultureInfo("en-GB"));
 
@@ -41,75 +40,37 @@ public class MeterReadingService(AppDbContext context, IMeterReadingValidator va
 
                 if (record == null)
                 {
-                    result.Failed++;
-                    result.Failures.Add(new MeterReadingFailureDetail { Reading = record!, Reason = "Empty or invalid record" });
+                    AddFailure(result, new MeterReadingDto { }, "Empty or invalid record");
                     continue;
                 }
 
                 if (!_validator.IsValid(record, out string? errorMessage))
                 {
-                    result.Failed++;
-                    result.Failures.Add(new MeterReadingFailureDetail { Reading = record, Reason = errorMessage ?? "Validation failed" });
+                    AddFailure(result, record, errorMessage ?? "Validation failed");
                     continue;
                 }
 
                 if (!accountIds.Contains(record.AccountId))
                 {
-                    result.Failed++;
-                    result.Failures.Add(new MeterReadingFailureDetail { Reading = record, Reason = "Account does not exist" });
+                    AddFailure(result, record, "Account does not exist");
                     continue;
                 }
 
-                if (!_accountReadingsCache.TryGetValue(record.AccountId, out var existingReadings))
+                var existingReadings = await GetOrLoadAccountReadings(record.AccountId, accountReadingsCache, ct);
+
+                if (IsDuplicateReading(record, existingReadings, seenKeys))
                 {
-                    existingReadings = await _context.MeterReadings
-                        .Where(r => r.AccountId == record.AccountId)
-                        .ToListAsync(ct);
-
-                    _accountReadingsCache[record.AccountId] = existingReadings;
-                }
-
-                var isDuplicateDb = existingReadings.Any(r =>
-                     r.MeterReadValue == record.MeterReadValue &&
-                     r.MeterReadingDateTime.Ticks == record.MeterReadingDateTime.Ticks);
-
-                var key = $"{record.AccountId}|{record.MeterReadValue}|{record.MeterReadingDateTime.Ticks}";
-                var isDuplicateInMemory = !seenKeys.Add(key);
-
-                if (isDuplicateDb || isDuplicateInMemory)
-                {
-                    result.Failed++;
-                    result.Failures.Add(new MeterReadingFailureDetail { Reading = record, Reason = "Duplicate reading" });
+                    AddFailure(result, record, "Duplicate reading");
                     continue;
                 }
 
-                var latestReadingDb = existingReadings
-                .OrderByDescending(r => r.MeterReadingDateTime)
-                 .FirstOrDefault();
-                
-                latestReadingsInMemory.TryGetValue(record.AccountId, out var latestReadingInMemory);
+                var latestReading = await GetLatestReading(record.AccountId, existingReadings, latestReadingsInMemory);
 
-                var latestReading = (latestReadingDb, latestReadingInMemory) switch
+                if(latestReading != null && record.MeterReadingDateTime <= latestReading.MeterReadingDateTime)
                 {
-                    (null, null) => null,
-                    (not null, null) => latestReadingDb,
-                    (null, not null) => latestReadingInMemory,
-                    _ => latestReadingDb.MeterReadingDateTime > latestReadingInMemory.MeterReadingDateTime
-                        ? latestReadingDb
-                        : latestReadingInMemory
-                };
-
-                if (latestReading != null && record.MeterReadingDateTime <= latestReading.MeterReadingDateTime)
-                {
-                    result.Failed++;
-                    result.Failures.Add(new MeterReadingFailureDetail
-                    {
-                        Reading = record,
-                        Reason = "Reading is older or equal to the latest one"
-                    });
+                    AddFailure(result, record, "Reading is older or equal to the latest one");
                     continue;
                 }
-
 
                 var entity = new MeterReading
                 {
@@ -120,12 +81,8 @@ public class MeterReadingService(AppDbContext context, IMeterReadingValidator va
 
                 newReadings.Add(entity);
 
-                if (!latestReadingsInMemory.TryGetValue(record.AccountId, out var currentLatest)
-                    ||
-                    record.MeterReadingDateTime > currentLatest.MeterReadingDateTime)
-                {
-                    latestReadingsInMemory[record.AccountId] = entity;
-                }
+                UpdateLatestReadingInMemory(record, entity, latestReadingsInMemory);
+
                 result.Successful++;
             }
         }
@@ -135,10 +92,7 @@ public class MeterReadingService(AppDbContext context, IMeterReadingValidator va
             throw new InvalidDataException("CSV file format is invalid. Please check headers and data format.", ex);
         }
 
-        foreach (var failure in result.Failures)
-        {
-            _logger.LogWarning("Failed to process reading: {@Reading}, Reason: {Reason}", failure.Reading, failure.Reason);
-        }
+        LogProcessingFailures(result);
 
         if (newReadings.Count > 0)
         {
@@ -149,6 +103,77 @@ public class MeterReadingService(AppDbContext context, IMeterReadingValidator va
         return result;
     }
 
+    private async Task<List<MeterReading>> GetOrLoadAccountReadings(int accountId, Dictionary<int, List<MeterReading>> cache, CancellationToken ct)
+    {
+        if (!cache.TryGetValue(accountId, out var existingReadings))
+        {
+            existingReadings = await _context.MeterReadings
+                .Where(r => r.AccountId == accountId)
+                .ToListAsync(ct);
+            cache[accountId] = existingReadings;
+        }
+        return existingReadings;
+    }
+
+    private bool IsDuplicateReading(MeterReadingDto record, List<MeterReading> existingReadings, HashSet<string> seenKeys)
+    {
+        var isDuplicateDb = existingReadings.Any(r =>
+            r.MeterReadValue == record.MeterReadValue &&
+            r.MeterReadingDateTime.Ticks == record.MeterReadingDateTime.Ticks);
+
+        var key = $"{record.AccountId}|{record.MeterReadValue}|{record.MeterReadingDateTime.Ticks}";
+        var isDuplicateInMemory = !seenKeys.Add(key);
+
+        return isDuplicateDb || isDuplicateInMemory;
+    }
+
+    private async Task<MeterReading?> GetLatestReading(int accountId, List<MeterReading> existingReadings, Dictionary<int, MeterReading> latestReadingsInMemory)
+    {
+        var latestReadingDb = existingReadings
+            .OrderByDescending(r => r.MeterReadingDateTime)
+            .FirstOrDefault();
+
+        latestReadingsInMemory.TryGetValue(accountId, out var latestReadingInMemory);
+
+        return (latestReadingDb, latestReadingInMemory) switch
+        {
+            (null, null) => null,
+            (not null, null) => latestReadingDb,
+            (null, not null) => latestReadingInMemory,
+            _ => latestReadingDb!.MeterReadingDateTime > latestReadingInMemory!.MeterReadingDateTime
+                ? latestReadingDb
+                : latestReadingInMemory
+        };
+    }
+
+    private void UpdateLatestReadingInMemory(MeterReadingDto record, MeterReading entity, Dictionary<int, MeterReading> latestReadingsInMemory)
+    {
+        if (!latestReadingsInMemory.TryGetValue(record.AccountId, out var currentLatest) ||
+            record.MeterReadingDateTime > currentLatest.MeterReadingDateTime)
+        {
+            latestReadingsInMemory[record.AccountId] = entity;
+        }
+    }
+
+    private void AddFailure(MeterReadingProcessingResult result, MeterReadingDto record, string reason)
+    {
+        result.Failed++;
+        result.Failures.Add(new MeterReadingFailureDetail
+        {
+            Reading = record,
+            Reason = reason
+        });
+    }
+
+    private void LogProcessingFailures(MeterReadingProcessingResult result)
+    {
+        foreach (var failure in result.Failures)
+        {
+            _logger.LogWarning("Failed to process reading: {@Reading}, Reason: {Reason}",
+                failure.Reading, failure.Reason);
+        }
+    }
+ 
     //public async Task<MeterReadingProcessingResult> ProcessReadingsAsync(Stream csvStream, CancellationToken ct = default)
     //{
     //    var result = new MeterReadingProcessingResult();
@@ -223,5 +248,4 @@ public class MeterReadingService(AppDbContext context, IMeterReadingValidator va
     //    await _context.SaveChangesAsync();
     //    return result;
     //}
-
 }

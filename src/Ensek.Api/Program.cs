@@ -33,9 +33,9 @@ builder.Services
     .AddApiVersionService()
     .AddDbContext<AppDbContext>(options => options.UseSqlite(connectionString));
 
-builder.Services.AddSingleton<IMeterReadingValidator, MeterReadingValidator>();
-builder.Services.AddScoped<IMeterReadingService, MeterReadingService>();
 builder.Services.Configure<MeterReadingConfig>(builder.Configuration.GetSection("MeterReadingConfig"));
+builder.Services.AddScoped<IMeterReadingValidator, MeterReadingValidator>();
+builder.Services.AddScoped<IMeterReadingService, MeterReadingService>();
 
 builder.Services.AddCors(options =>
 {
@@ -66,6 +66,7 @@ app.UseDatabaseMigrationAndSeeding();
 app.UseHttpsRedirection();
 app.UseRouting();
 app.MeterReadingModule();
+
 app.UseCors("AllowReactApp");
 
 app.Run();
