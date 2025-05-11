@@ -3,10 +3,10 @@ name: Build and Test
 on:
   push:
     branches:
-      - main
+      - ensek-task-mohamed-salah
   pull_request:
     branches:
-      - main
+      - ensek-task-mohamed-salah
 
 jobs:
   build-and-test:
