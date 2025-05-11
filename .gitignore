@@ -50,3 +50,6 @@ _ReSharper*/
 *.tmp
 *.lastbuildstate
 *.VS/
+/src/Ensek.Api/ensek.db
+/src/Ensek.Api/ensek.db-shm
+/src/Ensek.Api/ensek.db-wal
