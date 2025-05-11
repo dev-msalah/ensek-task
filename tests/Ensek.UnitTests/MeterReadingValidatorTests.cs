@@ -3,7 +3,7 @@ using Ensek.Core.Interfaces;
 using Ensek.Services;
 using Ensek.Test.Helpers;
 
-namespace Ensek.UnitTests;
+namespace Ensek.UnitTests.Services;
 
 public class MeterReadingValidatorTests : TestBase
 {
