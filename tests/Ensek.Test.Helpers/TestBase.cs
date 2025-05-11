@@ -1,12 +1,17 @@
-﻿using Ensek.Infrastructure;
+﻿using Ensek.Core.Configuration;
+using Ensek.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace Ensek.Test.Helpers;
 
 public abstract class TestBase
 {
     protected IConfiguration Configuration { get; }
+    protected MeterReadingConfig MeterReadingConfig { get; }
+    protected IOptions<MeterReadingConfig> MeterReadingOptions { get; }
+
     public TestBase()
     {
         Configuration = new ConfigurationBuilder()
@@ -17,6 +22,11 @@ public abstract class TestBase
                 ["MeterReadingConfig:MaxMeterReadingValue"] = "99999"
             })
             .Build();
+
+        MeterReadingConfig = new MeterReadingConfig();
+        Configuration.GetSection("MeterReadingConfig").Bind(MeterReadingConfig);
+
+        MeterReadingOptions = Options.Create(MeterReadingConfig);
     }
 
     protected AppDbContext CreateContext()

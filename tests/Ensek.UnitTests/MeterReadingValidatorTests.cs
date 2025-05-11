@@ -1,9 +1,7 @@
-﻿using Ensek.Core.Configuration;
-using Ensek.Core.Dtos;
+﻿using Ensek.Core.Dtos;
 using Ensek.Core.Interfaces;
 using Ensek.Services;
 using Ensek.Test.Helpers;
-using Microsoft.Extensions.Configuration;
 
 namespace Ensek.UnitTests;
 
@@ -12,10 +10,7 @@ public class MeterReadingValidatorTests : TestBase
     private readonly IMeterReadingValidator _validator;
     public MeterReadingValidatorTests()
     {
-
-        var config = new MeterReadingConfig();
-        Configuration.GetSection("MeterReadingConfig").Bind(config);
-        _validator = new MeterReadingValidator(config);
+        _validator = new MeterReadingValidator(MeterReadingOptions);
     }
     [Fact]
     public void Invalid_AccountId_Returns_Error()

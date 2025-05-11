@@ -1,12 +1,10 @@
-﻿using Ensek.Core.Configuration;
-using Ensek.Core.Dtos;
+﻿using Ensek.Core.Dtos;
 using Ensek.Core.Interfaces;
 using Ensek.Core.Models;
 using Ensek.Infrastructure;
 using Ensek.Services;
 using Ensek.Test.Helpers;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ensek.UnitTests.Services;
@@ -20,10 +18,7 @@ public class MeterReadingServiceTests: TestBase
     public MeterReadingServiceTests()
     {
         _context = CreateContext();
-
-        var config = new MeterReadingConfig();
-        Configuration.GetSection("MeterReadingConfig").Bind(config);
-        _validator = new MeterReadingValidator(config);
+        _validator = new MeterReadingValidator(MeterReadingOptions);
         _service = new MeterReadingService(_context, _validator, NullLogger<MeterReadingService>.Instance);
     }
 
