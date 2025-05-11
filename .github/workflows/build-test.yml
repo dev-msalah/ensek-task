@@ -27,8 +27,11 @@ jobs:
       - name: Build Solution
         run: dotnet build --configuration Release --no-restore
 
-      - name: Run Unit and Integration Tests
-        run: dotnet test --no-build --verbosity normal
+      - name: Run Unit Tests
+        run: dotnet test ./tests/Ensek.UnitTests/Ensek.UnitTests.csproj --no-build --verbosity normal
+
+      - name: Run Integration Tests
+        run: dotnet test ./tests/Ensek.IntegrationTests/Ensek.IntegrationTests.csproj --no-build --verbosity normal
 
       - name: Upload Test Results
         if: always()
