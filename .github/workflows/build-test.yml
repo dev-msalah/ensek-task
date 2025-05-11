@@ -16,16 +16,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install .NET 9 Preview SDK
-        run: |
-          wget https://download.visualstudio.microsoft.com/download/pr/7c5d9946-26c0-4908-9391-1d2e238d9b7c/0e0a7c520e4dfc490ef1f52bafec52c6/dotnet-sdk-9.0.100-preview.3.24172.9-linux-x64.tar.gz
-          mkdir -p $HOME/dotnet9
-          tar zxf dotnet-sdk-9.0.100-preview.3.24172.9-linux-x64.tar.gz -C $HOME/dotnet9
-          echo "$HOME/dotnet9" >> $GITHUB_PATH
-          echo "DOTNET_ROOT=$HOME/dotnet9" >> $GITHUB_ENV
-          
-      - name: Verify .NET SDK version
-        run: dotnet --version
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          version: '8.x'
 
       - name: Restore Dependencies
         run: dotnet restore
