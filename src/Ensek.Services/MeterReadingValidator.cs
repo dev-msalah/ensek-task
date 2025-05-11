@@ -1,10 +1,18 @@
-﻿using Ensek.Core.Dtos;
+﻿using Ensek.Core.Configuration;
+using Ensek.Core.Dtos;
 using Ensek.Core.Interfaces;
 
 namespace Ensek.Services;
 
 public class MeterReadingValidator : IMeterReadingValidator
 {
+    private readonly MeterReadingConfig _config;
+
+    public MeterReadingValidator(MeterReadingConfig config)
+    {
+        _config = config;
+    }
+
     public bool IsValid(MeterReadingDto dto, out string? errorMessage)
     {
         errorMessage = null;
@@ -21,8 +29,8 @@ public class MeterReadingValidator : IMeterReadingValidator
             return false;
         }
 
-        // TODO: move the min and max meter read value to config file or setting table later on 
-        if (dto.MeterReadValue < 0 || dto.MeterReadValue > 99999)
+        if (dto.MeterReadValue < _config.MinMeterReadingValue ||
+           dto.MeterReadValue > _config.MaxMeterReadingValue)
         {
             errorMessage = "MeterReadValue must be between 0 and 99999.";
             return false;

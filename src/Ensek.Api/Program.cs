@@ -1,5 +1,6 @@
 using Ensek.Api.Endpoints;
 using Ensek.Api.Extensions;
+using Ensek.Core.Configuration;
 using Ensek.Core.Interfaces;
 using Ensek.Infrastructure;
 using Ensek.Services;
@@ -34,15 +35,18 @@ builder.Services
 
 builder.Services.AddSingleton<IMeterReadingValidator, MeterReadingValidator>();
 builder.Services.AddScoped<IMeterReadingService, MeterReadingService>();
+builder.Services.Configure<MeterReadingConfig>(builder.Configuration.GetSection("MeterReadingConfig"));
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp",
         builder => builder
-            .WithOrigins(clientAppUrl) 
+            .WithOrigins(clientAppUrl)
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials());
 });
+
 var app = builder.Build();
 
 EndpointConventionBuilderExtensions.InitializeApiVersionSet(app);
@@ -54,7 +58,7 @@ if (app.Environment.IsDevelopment())
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "ENSEK Meter Reading API V1");
         c.SwaggerEndpoint("/swagger/v2/swagger.json", "ENSEK Meter Reading API V2");
-        c.RoutePrefix = "docs"; 
+        c.RoutePrefix = "docs";
     });
 }
 

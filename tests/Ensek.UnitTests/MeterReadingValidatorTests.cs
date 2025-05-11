@@ -1,12 +1,22 @@
-﻿using Ensek.Core.Dtos;
+﻿using Ensek.Core.Configuration;
+using Ensek.Core.Dtos;
+using Ensek.Core.Interfaces;
 using Ensek.Services;
+using Ensek.Test.Helpers;
+using Microsoft.Extensions.Configuration;
 
 namespace Ensek.UnitTests;
 
-public class MeterReadingValidatorTests
+public class MeterReadingValidatorTests : TestBase
 {
-    private readonly MeterReadingValidator _validator = new();
+    private readonly IMeterReadingValidator _validator;
+    public MeterReadingValidatorTests()
+    {
 
+        var config = new MeterReadingConfig();
+        Configuration.GetSection("MeterReadingConfig").Bind(config);
+        _validator = new MeterReadingValidator(config);
+    }
     [Fact]
     public void Invalid_AccountId_Returns_Error()
     {
@@ -74,7 +84,7 @@ public class MeterReadingValidatorTests
             MeterReadingDateTime = new DateTime(2024, 04, 05),
             MeterReadValue = 100000
         };
-        
+
         var result = _validator.IsValid(dto, out string? errorMessage);
 
         Assert.False(result);
@@ -96,7 +106,7 @@ public class MeterReadingValidatorTests
         Assert.True(result);
         Assert.Null(errorMessage);
     }
-    
+
     [Fact]
     public void MeterReadValue_ExactMin_IsValid()
     {

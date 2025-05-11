@@ -1,9 +1,11 @@
-﻿using Ensek.Core.Dtos;
+﻿using Ensek.Core.Configuration;
+using Ensek.Core.Dtos;
 using Ensek.Core.Interfaces;
 using Ensek.Infrastructure;
 using Ensek.Services;
 using Ensek.Test.Helpers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ensek.IntegrationTests;
@@ -17,7 +19,9 @@ public class LargeFilePerformanceTests : TestBase
     public LargeFilePerformanceTests()
     {
         _context = CreateContext();
-        _validator = new MeterReadingValidator();
+        var config = new MeterReadingConfig();
+        Configuration.GetSection("MeterReadingConfig").Bind(config);
+        _validator = new MeterReadingValidator(config);
         _service = new MeterReadingService(_context, _validator, NullLogger<MeterReadingService>.Instance);
     }
 
